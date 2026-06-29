@@ -397,7 +397,7 @@
 
   <!-- Header -->
   <div class="header">
-    <h1>📚 每日学习打卡</h1>
+    <h1>📚 每日学习打卡 <span id="syncBadge" style="font-size:14px;cursor:default" title="云同步状态">☁️</span></h1>
     <div class="date" id="dateDisplay"></div>
   </div>
 
@@ -548,6 +548,8 @@
   const SYNC_GIST_ID_KEY = '_syncGistId';
   const SYNC_FILE = 'checklist-sync.json';
   let syncTimer = null;
+  let _syncInProgress = false;
+  let _lastSyncTime = null;
 
   function getSyncToken() {
     return localStorage.getItem(SYNC_TOKEN_KEY);
@@ -557,21 +559,38 @@
     return !!getSyncToken();
   }
 
-  async function syncLoad() {
-    const token = getSyncToken();
-    if (!token) return;
-    let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
-    if (!gistId) {
-      // New device — discover existing Gist by description
-      gistId = await syncFindOrCreateGist(token, {});
-      if (!gistId) return;
-      localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
+  function updateSyncBadge(status, time) {
+    let el = document.getElementById('syncBadge');
+    if (!el) return;
+    if (status === 'ok') {
+      el.textContent = '☁️✓';
+      el.title = '上次同步: ' + (time || '刚刚');
+      el.style.color = '#34c759';
+    } else if (status === 'err') {
+      el.textContent = '☁️✗';
+      el.style.color = '#ff3b30';
+    } else {
+      el.textContent = '☁️';
+      el.style.color = '#8e8e93';
     }
+  }
+
+  async function syncLoad() {
+    if (_syncInProgress) return;
+    const token = getSyncToken();
+    if (!token) { updateSyncBadge('off'); return; }
+    let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
+    _syncInProgress = true;
     try {
+      if (!gistId) {
+        gistId = await syncFindOrCreateGist(token, {});
+        if (!gistId) { updateSyncBadge('err'); return; }
+        localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
+      }
       const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
         headers: { 'Authorization': `token ${token}` }
       });
-      if (!resp.ok) return;
+      if (!resp.ok) { updateSyncBadge('err'); return; }
       const gist = await resp.json();
       const raw = gist.files?.[SYNC_FILE]?.content;
       if (!raw) return;
@@ -593,8 +612,13 @@
         ...d,
         enabled: !data.disabledDefaultIds.includes(d.id),
       }));
-      save();
-    } catch(e) { /* offline — noop */ }
+      _lastSyncTime = new Date().toLocaleTimeString();
+      updateSyncBadge('ok', _lastSyncTime);
+      // Save locally WITHOUT triggering another push
+      _syncInProgress = true;
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+    } catch(e) { updateSyncBadge('err'); }
+    _syncInProgress = false;
   }
 
   async function syncFindOrCreateGist(token, syncData) {
@@ -686,10 +710,16 @@
     if (token === null) return; // cancelled
     if (token.trim()) {
       localStorage.setItem(SYNC_TOKEN_KEY, token.trim());
-      alert('✅ Token 已保存！云同步已开启。');
+      updateSyncBadge('ok');
+      // Trigger immediate sync
+      syncLoad().then(() => {
+        renderChecklist();
+        alert('✅ Token 已保存！数据已同步。');
+      });
     } else {
       localStorage.removeItem(SYNC_TOKEN_KEY);
       localStorage.removeItem(SYNC_GIST_ID_KEY);
+      updateSyncBadge('off');
       alert('☁️ Token 已清除，云同步已关闭。');
     }
   }
@@ -797,7 +827,7 @@
     } catch (e) {
       // Storage full — silently fail
     }
-    syncPushDebounced(); // fire-and-forget cloud sync
+    if (!_syncInProgress) syncPushDebounced(); // don't push during pull
   }
 
   function getAllEnabledItems() {
