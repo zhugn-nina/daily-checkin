@@ -111,17 +111,6 @@
   .page { display: none; }
   .page.active { display: block; }
 
-  /* ===== Streak Banner ===== */
-  .streak-banner {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 16px;
-    font-size: 14px; font-weight: 600; color: #fff;
-    background: linear-gradient(135deg, #FF6B35, #F7931E);
-    box-shadow: 0 2px 10px rgba(255,107,53,0.3);
-  }
-  .streak-banner .fire { font-size: 20px; animation: pulse 1s ease-in-out infinite; }
-  .streak-banner.milestone { background: linear-gradient(135deg, #7B2FF7, #9B59B6); }
-
   /* ===== Motivational Quote ===== */
   .motto {
     text-align: center; font-size: 14px; color: var(--text-secondary);
@@ -397,7 +386,7 @@
 
   <!-- Header -->
   <div class="header">
-    <h1>📚 每日学习打卡 <span id="syncBadge" style="font-size:14px;cursor:default" title="云同步状态">☁️</span></h1>
+    <h1 id="mainTitle">📚 连续打卡 0 天</h1>
     <div class="date" id="dateDisplay"></div>
   </div>
 
@@ -409,12 +398,6 @@
 
   <!-- ========== PAGE 1: Checklist ========== -->
   <div class="page active" id="pageChecklist">
-
-    <!-- Streak Banner -->
-    <div class="streak-banner" id="streakBanner">
-      <span class="fire">🔥</span>
-      <span id="streakText">连续打卡 0 天</span>
-    </div>
 
     <!-- Motto -->
     <div class="motto" id="motto">
@@ -555,12 +538,7 @@
     return !!getSyncToken();
   }
   function updateSyncBadge(status) {
-    let el = document.getElementById('syncBadge');
-    if (!el) return;
-    if (status === 'ok')      { el.textContent = '☁️✓'; el.style.color = '#34c759'; }
-    else if (status === 'err') { el.textContent = '☁️✗'; el.style.color = '#ff3b30'; }
-    else if (status === 'off') { el.textContent = '☁️';  el.style.color = '#8e8e93'; }
-    else if (status === 'busy'){ el.textContent = '☁️…'; el.style.color = '#007aff'; }
+    // Sync status is reflected in the sync section of the manage panel
   }
 
   // --- Find or create the shared Gist ---
@@ -897,8 +875,8 @@
           data._streakDay = '';  // allow re-increment if re-completed
         }
         save();
-        // Refresh the banner to reflect the decremented streak
-        document.getElementById('streakText').textContent = `连续打卡 ${data.streak} 天`;
+        // Refresh title to reflect the decremented streak
+        document.getElementById('mainTitle').textContent = `🔥 连续打卡 ${data.streak} 天`;
       }
     }
   }
@@ -938,15 +916,8 @@
     }, 0);
     document.getElementById('timeDisplay').textContent = totalMin > 0 ? totalMin + 'm' : '-';
 
-    // Streak
-    document.getElementById('streakText').textContent = `连续打卡 ${data.streak} 天`;
-    const banner = document.getElementById('streakBanner');
-    const milestones = [3, 7, 14, 30, 60, 100];
-    if (milestones.includes(data.streak) && data.milestoneReached[data.streak]) {
-      banner.classList.add('milestone');
-    } else {
-      banner.classList.remove('milestone');
-    }
+    // Update title with streak
+    document.getElementById('mainTitle').textContent = `🔥 连续打卡 ${data.streak} 天`;
   }
 
   function updateMotto(total, done) {
@@ -1000,8 +971,8 @@
 
     save();
 
-    // Immediately update streak banner
-    document.getElementById('streakText').textContent = `连续打卡 ${data.streak} 天`;
+    // Immediately update title with new streak
+    document.getElementById('mainTitle').textContent = `🔥 连续打卡 ${data.streak} 天`;
 
     // Confetti
     startConfetti();
