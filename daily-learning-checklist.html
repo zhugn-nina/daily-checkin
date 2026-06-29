@@ -541,117 +541,31 @@
   ];
 
   // ═══════════════════════════════════════
-  // GitHub Gist 云同步
-  // 首次使用需在管理面板设置 Token（仅 gist 权限）
+  // GitHub Gist 云同步（操作即写，刷新即读）
   // ═══════════════════════════════════════
   const SYNC_TOKEN_KEY  = '_syncToken';
   const SYNC_GIST_ID_KEY = '_syncGistId';
   const SYNC_FILE = 'checklist-sync.json';
-  let syncTimer = null;
   let _syncInProgress = false;
-  let _lastSyncTime = null;
-  let _readyToPush = false;  // only push after init is done
 
   function getSyncToken() {
     return localStorage.getItem(SYNC_TOKEN_KEY);
   }
-
   function hasSyncToken() {
     return !!getSyncToken();
   }
-
-  function updateSyncBadge(status, time) {
+  function updateSyncBadge(status) {
     let el = document.getElementById('syncBadge');
     if (!el) return;
-    if (status === 'ok') {
-      el.textContent = '☁️✓';
-      el.title = '上次同步: ' + (time || '刚刚');
-      el.style.color = '#34c759';
-    } else if (status === 'err') {
-      el.textContent = '☁️✗';
-      el.style.color = '#ff3b30';
-    } else {
-      el.textContent = '☁️';
-      el.style.color = '#8e8e93';
-    }
+    if (status === 'ok')      { el.textContent = '☁️✓'; el.style.color = '#34c759'; }
+    else if (status === 'err') { el.textContent = '☁️✗'; el.style.color = '#ff3b30'; }
+    else if (status === 'off') { el.textContent = '☁️';  el.style.color = '#8e8e93'; }
+    else if (status === 'busy'){ el.textContent = '☁️…'; el.style.color = '#007aff'; }
   }
 
-  async function syncLoad() {
-    if (_syncInProgress) return;
-    const token = getSyncToken();
-    if (!token) { updateSyncBadge('off'); return; }
-    _syncInProgress = true;
-    try {
-      let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
-      if (!gistId) {
-        gistId = await syncFindOrCreateGist(token, {});
-        if (!gistId) throw new Error('no gist');
-        localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
-      }
-      const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
-        headers: { 'Authorization': `token ${token}` }
-      });
-      if (!resp.ok) throw new Error('fetch fail ' + resp.status);
-      const gist = await resp.json();
-      const raw = gist.files?.[SYNC_FILE]?.content;
-      if (!raw) throw new Error('no file');
-      const remote = JSON.parse(raw);
-      if (!remote || typeof remote !== 'object') throw new Error('bad json');
-
-      let changed = false;
-      if (remote.streak !== undefined && remote.streak !== data.streak) {
-        data.streak = remote.streak; changed = true;
-      }
-      if (remote.longestStreak !== undefined && remote.longestStreak > (data.longestStreak || 0)) {
-        data.longestStreak = remote.longestStreak; changed = true;
-      }
-      if (remote._streakDay !== undefined && remote._streakDay !== data._streakDay) {
-        data._streakDay = remote._streakDay; changed = true;
-      }
-      if (remote.milestoneReached) {
-        const before = JSON.stringify(data.milestoneReached);
-        Object.assign(data.milestoneReached, remote.milestoneReached);
-        if (JSON.stringify(data.milestoneReached) !== before) changed = true;
-      }
-      if (remote.disabledDefaultIds) {
-        const before = JSON.stringify(data.disabledDefaultIds);
-        data.disabledDefaultIds = remote.disabledDefaultIds;
-        if (JSON.stringify(data.disabledDefaultIds) !== before) changed = true;
-      }
-      if (remote.customItems) {
-        const before = JSON.stringify(data.customItems);
-        data.customItems = remote.customItems;
-        if (JSON.stringify(data.customItems) !== before) changed = true;
-      }
-      if (remote.history) {
-        const before = JSON.stringify(data.history);
-        Object.assign(data.history, remote.history);
-        if (JSON.stringify(data.history) !== before) changed = true;
-      }
-      if (remote.todayChecks && remote.today === data.today) {
-        const before = JSON.stringify(data.todayChecks);
-        Object.assign(data.todayChecks, remote.todayChecks);
-        if (JSON.stringify(data.todayChecks) !== before) changed = true;
-      }
-
-      if (changed) {
-        data.defaultItems = DEFAULT_ITEMS.map(d => ({
-          ...d,
-          enabled: !data.disabledDefaultIds.includes(d.id),
-        }));
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
-      }
-      _lastSyncTime = new Date().toLocaleTimeString();
-      updateSyncBadge('ok', _lastSyncTime);
-    } catch(e) {
-      updateSyncBadge('err');
-      console.log('Sync pull error:', e.message);
-    }
-    _syncInProgress = false;
-  }
-
-  async function syncFindOrCreateGist(token, syncData) {
-    // 1. Try to find an existing sync Gist
+  // --- Find or create the shared Gist ---
+  async function syncFindOrCreateGist(token) {
+    // Search existing Gists
     try {
       const listResp = await fetch('https://api.github.com/gists?per_page=100', {
         headers: { 'Authorization': `token ${token}` }
@@ -659,23 +573,20 @@
       if (listResp.ok) {
         const gists = await listResp.json();
         const existing = gists.find(g =>
-          g.description === '学习打卡数据同步' &&
-          g.files && g.files[SYNC_FILE]
+          g.description === '学习打卡数据同步' && g.files && g.files[SYNC_FILE]
         );
         if (existing) return existing.id;
       }
-    } catch(e) { /* fall through to create */ }
-
-    // 2. No existing Gist found — create one
-    const body = {
-      description: '学习打卡数据同步',
-      public: false,
-      files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } },
-    };
+    } catch(e) {}
+    // Create new
     const resp = await fetch('https://api.github.com/gists', {
       method: 'POST',
       headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        description: '学习打卡数据同步',
+        public: false,
+        files: { [SYNC_FILE]: { content: '{}' } },
+      }),
     });
     if (resp.ok) {
       const gist = await resp.json();
@@ -684,9 +595,57 @@
     return null;
   }
 
+  // --- Pull: called on page load / refresh ---
+  async function syncPull() {
+    if (_syncInProgress) return;
+    const token = getSyncToken();
+    if (!token) { updateSyncBadge('off'); return; }
+    _syncInProgress = true;
+    updateSyncBadge('busy');
+    try {
+      let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
+      if (!gistId) {
+        gistId = await syncFindOrCreateGist(token);
+        if (!gistId) throw new Error('no gist');
+        localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
+      }
+      const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (!resp.ok) throw new Error('status ' + resp.status);
+      const gist = await resp.json();
+      const raw = gist.files?.[SYNC_FILE]?.content;
+      if (!raw) throw new Error('no file');
+      const remote = JSON.parse(raw);
+      if (!remote || typeof remote !== 'object') throw new Error('bad json');
+
+      if (remote.streak !== undefined)        data.streak = remote.streak;
+      if (remote.longestStreak !== undefined && remote.longestStreak > (data.longestStreak || 0))
+                                              data.longestStreak = remote.longestStreak;
+      if (remote._streakDay !== undefined)    data._streakDay = remote._streakDay;
+      if (remote.milestoneReached)            Object.assign(data.milestoneReached, remote.milestoneReached);
+      if (remote.disabledDefaultIds)          data.disabledDefaultIds = remote.disabledDefaultIds;
+      if (remote.customItems)                 data.customItems = remote.customItems;
+      if (remote.history)                     Object.assign(data.history, remote.history);
+      if (remote.todayChecks && remote.today === data.today)
+                                              data.todayChecks = remote.todayChecks;
+
+      data.defaultItems = DEFAULT_ITEMS.map(d => ({
+        ...d,
+        enabled: !data.disabledDefaultIds.includes(d.id),
+      }));
+      updateSyncBadge('ok');
+    } catch(e) {
+      updateSyncBadge('err');
+    }
+    _syncInProgress = false;
+  }
+
+  // --- Push: called immediately after every user action ---
   async function syncPush() {
     const token = getSyncToken();
     if (!token) return;
+    updateSyncBadge('busy');
     const syncData = {
       today: data.today,
       todayChecks: data.todayChecks,
@@ -703,27 +662,24 @@
     try {
       let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
       if (!gistId) {
-        gistId = await syncFindOrCreateGist(token, syncData);
-        if (!gistId) return;
+        gistId = await syncFindOrCreateGist(token);
+        if (!gistId) { updateSyncBadge('err'); return; }
         localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
       }
-      const body = { files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } } };
       const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
         method: 'PATCH',
         headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } } }),
       });
-      if (!resp.ok && resp.status === 404) {
-        // Gist deleted — forget old ID and re-create on next push
+      if (resp.ok) {
+        updateSyncBadge('ok');
+      } else if (resp.status === 404) {
         localStorage.removeItem(SYNC_GIST_ID_KEY);
+        updateSyncBadge('err');
+      } else {
+        updateSyncBadge('err');
       }
-    } catch(e) { /* offline — noop */ }
-  }
-
-  function syncPushDebounced() {
-    if (!_readyToPush) return;  // Don't push until init is fully done
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(syncPush, 2000);
+    } catch(e) { updateSyncBadge('err'); }
   }
 
   function setupSyncToken() {
@@ -737,12 +693,10 @@
       '留空则关闭云同步功能',
       current
     );
-    if (token === null) return; // cancelled
+    if (token === null) return;
     if (token.trim()) {
       localStorage.setItem(SYNC_TOKEN_KEY, token.trim());
-      updateSyncBadge('ok');
-      // Trigger immediate sync
-      syncLoad().then(() => {
+      syncPull().then(() => {
         renderChecklist();
         alert('✅ Token 已保存！数据已同步。');
       });
@@ -857,7 +811,7 @@
     } catch (e) {
       // Storage full — silently fail
     }
-    if (!_syncInProgress) syncPushDebounced(); // don't push during pull
+    // sync is explicit, not on every save
   }
 
   function getAllEnabledItems() {
@@ -961,9 +915,10 @@
     return match ? parseInt(match[1], 10) : 0;
   }
 
-  function toggleItem(itemId) {
+  async function toggleItem(itemId) {
     data.todayChecks[itemId] = !data.todayChecks[itemId];
     save();
+    await syncPush();  // immediately write to server
     renderChecklist();
   }
 
@@ -1339,15 +1294,14 @@
     });
   }
 
-  function toggleItemEnabled(itemId, type) {
+  async function toggleItemEnabled(itemId, type) {
     if (type === 'default') {
-      // Toggle disabledDefaultIds
       const idx = data.disabledDefaultIds.indexOf(itemId);
       if (idx >= 0) {
-        data.disabledDefaultIds.splice(idx, 1); // re-enable
+        data.disabledDefaultIds.splice(idx, 1);
         data.defaultItems.find(d => d.id === itemId).enabled = true;
       } else {
-        data.disabledDefaultIds.push(itemId);    // disable
+        data.disabledDefaultIds.push(itemId);
         data.defaultItems.find(d => d.id === itemId).enabled = false;
         delete data.todayChecks[itemId];
       }
@@ -1358,20 +1312,22 @@
       if (!item.enabled) delete data.todayChecks[itemId];
     }
     save();
+    await syncPush();
     renderManage();
     renderChecklist();
   }
 
-  function deleteCustomItem(itemId) {
+  async function deleteCustomItem(itemId) {
     if (!confirm('确定要删除这个打卡项吗？')) return;
     data.customItems = data.customItems.filter(i => i.id !== itemId);
     delete data.todayChecks[itemId];
     save();
+    await syncPush();
     renderManage();
     renderChecklist();
   }
 
-  function addCustomItem() {
+  async function addCustomItem() {
     const input = document.getElementById('newItemInput');
     const timeInput = document.getElementById('newItemTime');
     const tagSelect = document.getElementById('newItemTag');
@@ -1387,13 +1343,15 @@
     input.value = '';
     timeInput.value = '';
     save();
+    await syncPush();
     renderManage();
     renderChecklist();
   }
 
-  function uncheckAll() {
+  async function uncheckAll() {
     data.todayChecks = {};
     save();
+    await syncPush();
     renderChecklist();
   }
 
@@ -1668,17 +1626,11 @@
   // ========== MAIN INIT ==========
   async function init() {
     load();            // 1. read localStorage
-    await syncLoad();  // 2. merge remote Gist data
-    dailyReset();      // 3. daily reset with full (cross-device) data
+    await syncPull();  // 2. pull from Gist (merges remote data)
+    dailyReset();      // 3. daily reset with full data
     updateDateDisplay();
     renderChecklist();
     bindEvents();
-    // Allow pushes and start auto-poll (5s)
-    _readyToPush = true;
-    setInterval(async () => {
-      await syncLoad();
-      renderChecklist();
-    }, 5000);
   }
 
   init();
