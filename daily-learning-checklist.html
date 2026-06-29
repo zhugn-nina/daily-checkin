@@ -559,8 +559,14 @@
 
   async function syncLoad() {
     const token = getSyncToken();
-    const gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
-    if (!token || !gistId) return;
+    if (!token) return;
+    let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
+    if (!gistId) {
+      // New device — discover existing Gist by description
+      gistId = await syncFindOrCreateGist(token, {});
+      if (!gistId) return;
+      localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
+    }
     try {
       const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
         headers: { 'Authorization': `token ${token}` }
@@ -591,6 +597,40 @@
     } catch(e) { /* offline — noop */ }
   }
 
+  async function syncFindOrCreateGist(token, syncData) {
+    // 1. Try to find an existing sync Gist
+    try {
+      const listResp = await fetch('https://api.github.com/gists?per_page=100', {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (listResp.ok) {
+        const gists = await listResp.json();
+        const existing = gists.find(g =>
+          g.description === '学习打卡数据同步' &&
+          g.files && g.files[SYNC_FILE]
+        );
+        if (existing) return existing.id;
+      }
+    } catch(e) { /* fall through to create */ }
+
+    // 2. No existing Gist found — create one
+    const body = {
+      description: '学习打卡数据同步',
+      public: false,
+      files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } },
+    };
+    const resp = await fetch('https://api.github.com/gists', {
+      method: 'POST',
+      headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+      const gist = await resp.json();
+      return gist.id;
+    }
+    return null;
+  }
+
   async function syncPush() {
     const token = getSyncToken();
     if (!token) return;
@@ -608,25 +648,21 @@
       updatedAt: new Date().toISOString(),
     };
     try {
-      const gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
-      const body = { files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } } };
-      let resp;
-      if (gistId) {
-        resp = await fetch(`https://api.github.com/gists/${gistId}`, {
-          method: 'PATCH',
-          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      } else {
-        resp = await fetch('https://api.github.com/gists', {
-          method: 'POST',
-          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ description: '学习打卡数据同步', public: false, ...body }),
-        });
+      let gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
+      if (!gistId) {
+        gistId = await syncFindOrCreateGist(token, syncData);
+        if (!gistId) return;
+        localStorage.setItem(SYNC_GIST_ID_KEY, gistId);
       }
-      if (resp.ok) {
-        const gist = await resp.json();
-        localStorage.setItem(SYNC_GIST_ID_KEY, gist.id);
+      const body = { files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } } };
+      const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok && resp.status === 404) {
+        // Gist deleted — forget old ID and re-create on next push
+        localStorage.removeItem(SYNC_GIST_ID_KEY);
       }
     } catch(e) { /* offline — noop */ }
   }
@@ -1577,6 +1613,11 @@
     updateDateDisplay();
     renderChecklist();
     bindEvents();
+    // 4. auto-poll remote changes every 30s
+    setInterval(async () => {
+      await syncLoad();
+      renderChecklist();
+    }, 5000);
   }
 
   init();
