@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📚 每日学习打卡清单</title>
+<style>
+  :root {
+    --bg: #f2f2f7;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --text-secondary: #8e8e93;
+    --accent: #007aff;
+    --accent-hover: #0062cc;
+    --border: #e5e5ea;
+    --done: #34c759;
+    --done-bg: #e8f8ed;
+    --delete: #ff3b30;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+    --radius: 16px;
+    --radius-sm: 12px;
+    --tag-yuwen: #FF6B6B;
+    --tag-shuxue: #4ECDC4;
+    --tag-yingyu: #FFB020;
+    --tag-qita: #6C5CE7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 60px;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 500px;
+  }
+
+  /* ===== Confetti Canvas ===== */
+  #confettiCanvas {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1000;
+  }
+
+  /* ===== Modals ===== */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.45); z-index: 500;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.25s ease;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--card); border-radius: 20px; padding: 28px 24px 20px;
+    width: 90%; max-width: 400px; box-shadow: var(--shadow-lg);
+    text-align: center; animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  .modal h2 { font-size: 24px; margin-bottom: 8px; }
+  .modal p { font-size: 15px; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.5; }
+  .modal .emoji-big { font-size: 56px; display: block; margin-bottom: 10px; }
+  .modal .stat-row { display: flex; justify-content: center; gap: 24px; margin: 16px 0; }
+  .modal .stat-row .val { font-size: 22px; font-weight: 700; }
+  .modal .stat-row .lbl { font-size: 12px; color: var(--text-secondary); }
+  .modal button {
+    margin-top: 14px; height: 42px; padding: 0 32px;
+    border: none; border-radius: 21px; background: var(--accent);
+    color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .modal button:hover { background: var(--accent-hover); }
+
+  /* Celebration modal enhancements */
+  .modal-celebration {
+    background: linear-gradient(145deg, #ffffff 0%, #fff8f0 100%);
+    box-shadow: 0 0 0 3px rgba(255,107,53,0.25), var(--shadow-lg);
+  }
+  .celeb-quote {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.3px;
+    background: linear-gradient(135deg, #FF6B35, #F7931E, #FF3B7F);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 10px 0 6px; line-height: 1.4;
+    padding: 0 8px;
+  }
+
+  /* ===== Header ===== */
+  .header { text-align: center; margin-bottom: 20px; }
+  .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .header .date { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+  /* ===== Tabs ===== */
+  .tabs {
+    display: flex; background: var(--card); border-radius: var(--radius-sm);
+    padding: 4px; margin-bottom: 20px; box-shadow: var(--shadow);
+  }
+  .tab {
+    flex: 1; text-align: center; padding: 10px 0; border-radius: 10px;
+    font-size: 15px; font-weight: 600; cursor: pointer; color: var(--text-secondary);
+    transition: all 0.25s;
+  }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(0,122,255,0.3); }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ===== Streak Banner ===== */
+  .streak-banner {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 16px; border-radius: var(--radius-sm); margin-bottom: 16px;
+    font-size: 14px; font-weight: 600; color: #fff;
+    background: linear-gradient(135deg, #FF6B35, #F7931E);
+    box-shadow: 0 2px 10px rgba(255,107,53,0.3);
+  }
+  .streak-banner .fire { font-size: 20px; animation: pulse 1s ease-in-out infinite; }
+  .streak-banner.milestone { background: linear-gradient(135deg, #7B2FF7, #9B59B6); }
+
+  /* ===== Motivational Quote ===== */
+  .motto {
+    text-align: center; font-size: 14px; color: var(--text-secondary);
+    margin-bottom: 16px; padding: 8px 0; font-style: italic;
+  }
+  .motto .icon { font-style: normal; }
+
+  /* ===== Stats Row ===== */
+  .stats-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .stat-card {
+    flex: 1; background: var(--card); border-radius: var(--radius-sm);
+    padding: 12px 10px; text-align: center; box-shadow: var(--shadow);
+  }
+  .stat-card .num { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+  .stat-card .lbl { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .stat-card.total .num { color: var(--accent); }
+  .stat-card.done .num { color: var(--done); }
+
+  /* ===== Progress ===== */
+  .progress-wrap { margin-bottom: 20px; }
+  .progress-wrap .label-row {
+    display: flex; justify-content: space-between; font-size: 12px;
+    color: var(--text-secondary); margin-bottom: 6px;
+  }
+  .progress-bar {
+    height: 8px; background: var(--border); border-radius: 4px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--accent), #5AC8FA, var(--done));
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ===== Checklist Groups ===== */
+  .group { margin-bottom: 16px; }
+  .group-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 4px 6px;
+  }
+  .group-tag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 15px; font-weight: 700;
+  }
+  .group-tag .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+  .group-progress { font-size: 12px; color: var(--text-secondary); }
+
+  .group-items {
+    background: var(--card); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .group-items:empty { display: none; }
+
+  .item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-bottom: 0.5px solid var(--border);
+    transition: background 0.2s;
+  }
+  .item:last-child { border-bottom: none; }
+  .item:active { background: #f0f0f5; }
+  .item.done { background: var(--done-bg); }
+
+  .checkbox {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid #c7c7cc; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .item.done .checkbox {
+    background: var(--done); border-color: var(--done);
+    animation: bounceCheck 0.35s ease;
+  }
+  .item.done .checkbox::after { content: '✓'; color: #fff; font-size: 13px; font-weight: 700; }
+
+  .item .text { flex: 1; font-size: 15px; word-break: break-word; }
+  .item.done .text { text-decoration: line-through; color: var(--text-secondary); }
+  .item .item-time {
+    font-size: 12px; color: var(--text-secondary); margin-left: 6px;
+    white-space: nowrap;
+  }
+  .item.done .item-time { text-decoration: none; }
+
+  @keyframes bounceCheck {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.25); }
+    60% { transform: scale(0.9); }
+    100% { transform: scale(1); }
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+  /* ===== Toolbar ===== */
+  .toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
+  .toolbar button {
+    flex: 1; height: 38px; border: 1.5px solid var(--border); border-radius: 19px;
+    background: var(--card); color: var(--text); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .toolbar button.danger:hover { border-color: var(--delete); color: var(--delete); }
+
+  /* ===== Manage Panel ===== */
+  .manage-section { margin-top: 16px; }
+  .manage-section h3 {
+    font-size: 13px; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 8px; padding: 0 4px;
+  }
+  .manage-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; background: var(--card); border-radius: 10px;
+    margin-bottom: 6px; box-shadow: var(--shadow); font-size: 14px;
+  }
+  .manage-item.disabled .text { color: var(--text-secondary); }
+  .manage-item .text { flex: 1; }
+  .manage-item .editable-text {
+    cursor: text; padding: 2px 4px; border-radius: 6px;
+    transition: background 0.15s; margin: -2px -4px;
+  }
+  .manage-item .editable-text:hover {
+    background: rgba(0,122,255,0.08);
+  }
+  .manage-item .editable-text::after {
+    content: ' ✎'; font-size: 11px; color: var(--text-secondary);
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .manage-item .editable-text:hover::after { opacity: 1; }
+  .manage-item .time-badge {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+    color: var(--accent); background: rgba(0,122,255,0.1); cursor: text;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .manage-item .time-badge:hover { background: rgba(0,122,255,0.18); }
+  .manage-item.disabled .time-badge { opacity: 0.5; }
+  .manage-item .mini-tag {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px;
+    color: #fff;
+  }
+  .manage-item .toggle {
+    width: 44px; height: 26px; border-radius: 13px; border: none;
+    cursor: pointer; position: relative; transition: background 0.25s;
+    background: #e5e5ea;
+  }
+  .manage-item .toggle.on { background: var(--done); }
+  .manage-item .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 22px; height: 22px; border-radius: 50%; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: transform 0.25s;
+  }
+  .manage-item .toggle.on::after { transform: translateX(18px); }
+  .manage-item .del-mini {
+    width: 28px; height: 28px; border: none; border-radius: 50%;
+    background: transparent; color: var(--delete); font-size: 16px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .add-item-row {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .add-item-row input {
+    flex: 1; height: 40px; border: 2px solid var(--border); border-radius: 10px;
+    padding: 0 12px; font-size: 14px; outline: none;
+  }
+  .add-item-row input:focus { border-color: var(--accent); }
+  .add-item-row select {
+    height: 40px; border: 2px solid var(--border); border-radius: 10px;
+    padding: 0 8px; font-size: 14px; outline: none; background: #fff;
+  }
+  .add-item-row button {
+    height: 40px; padding: 0 16px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+  }
+
+  /* ===== Stats Page ===== */
+  .stat-section { margin-bottom: 24px; }
+  .stat-section h3 {
+    font-size: 16px; font-weight: 700; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .stat-insight {
+    background: var(--card); border-radius: var(--radius-sm); padding: 16px;
+    box-shadow: var(--shadow); margin-bottom: 16px; text-align: center;
+    font-size: 15px; line-height: 1.6; color: var(--text);
+  }
+  .stat-insight .big { font-size: 22px; display: block; margin-bottom: 4px; }
+
+  /* Week bar chart */
+  .week-chart {
+    display: flex; align-items: flex-end; gap: 8px;
+    height: 140px; padding: 8px 0;
+  }
+  .week-chart .bar-col {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    height: 100%; justify-content: flex-end;
+  }
+  .week-chart .bar-label { font-size: 11px; color: var(--text-secondary); }
+  .week-chart .bar-val { font-size: 11px; font-weight: 600; }
+  .week-chart .bar {
+    width: 100%; max-width: 44px; border-radius: 8px 8px 4px 4px;
+    background: linear-gradient(180deg, var(--accent), #5AC8FA);
+    min-height: 4px; transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .week-chart .bar.today { background: linear-gradient(180deg, #FF6B35, #F7931E); }
+  .week-chart .bar.zero { background: var(--border); }
+
+  /* Month heatmap */
+  .month-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;
+  }
+  .month-grid .day-cell {
+    aspect-ratio: 1; border-radius: 6px; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; position: relative;
+  }
+  .month-grid .day-cell.future { color: var(--text-secondary); }
+  .month-grid .day-cell.grade-0 { background: #e5e5ea; color: var(--text-secondary); }
+  .month-grid .day-cell.grade-1 { background: #b8e6c8; color: #1d7a3d; }
+  .month-grid .day-cell.grade-2 { background: #6dd98c; color: #fff; }
+  .month-grid .day-cell.grade-3 { background: #34c759; color: #fff; }
+  .month-grid .day-cell.today { box-shadow: 0 0 0 2px var(--accent); }
+  .month-grid .weekday-label {
+    font-size: 11px; color: var(--text-secondary); text-align: center;
+    padding: 4px 0;
+  }
+
+  .kpi-row { display: flex; gap: 10px; margin-bottom: 16px; }
+  .kpi-card {
+    flex: 1; background: var(--card); border-radius: var(--radius-sm);
+    padding: 14px 12px; text-align: center; box-shadow: var(--shadow);
+  }
+  .kpi-card .val { font-size: 22px; font-weight: 700; }
+  .kpi-card .lbl { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Back to top */
+  .back-top {
+    display: block; width: 100%; margin-top: 12px; padding: 10px;
+    border: 1.5px solid var(--border); border-radius: 20px;
+    background: var(--card); color: var(--accent); font-size: 14px;
+    font-weight: 500; cursor: pointer; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="confettiCanvas"></canvas>
+
+<!-- ===== Celebration Modal ===== -->
+<div class="modal-overlay hidden" id="celebrationOverlay">
+  <div class="modal modal-celebration">
+    <span class="emoji-big">🎉</span>
+    <h2>太棒了！今日全部完成！</h2>
+    <div class="celeb-quote" id="celebMsg"></div>
+    <div class="stat-row">
+      <div><div class="val" id="celebTotal">0</div><div class="lbl">今日完成</div></div>
+      <div><div class="val" id="celebStreak">0</div><div class="lbl">连续天数</div></div>
+    </div>
+    <button id="celebCloseBtn">继续加油 💪</button>
+  </div>
+</div>
+
+<!-- ===== Milestone Modal ===== -->
+<div class="modal-overlay hidden" id="milestoneOverlay">
+  <div class="modal">
+    <span class="emoji-big">🏆</span>
+    <h2 id="milestoneTitle">里程碑达成！</h2>
+    <p id="milestoneMsg"></p>
+    <button id="milestoneCloseBtn">太棒了！</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>📚 每日学习打卡</h1>
+    <div class="date" id="dateDisplay"></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="checklist">📋 今日打卡</div>
+    <div class="tab" data-tab="stats">📊 统计分析</div>
+  </div>
+
+  <!-- ========== PAGE 1: Checklist ========== -->
+  <div class="page active" id="pageChecklist">
+
+    <!-- Streak Banner -->
+    <div class="streak-banner" id="streakBanner">
+      <span class="fire">🔥</span>
+      <span id="streakText">连续打卡 0 天</span>
+    </div>
+
+    <!-- Motto -->
+    <div class="motto" id="motto">
+      <span class="icon">💪</span> 新的一天，开始学习吧！
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card total">
+        <div class="num" id="totalCount">0</div><div class="lbl">总项目</div>
+      </div>
+      <div class="stat-card done">
+        <div class="num" id="doneCount">0</div><div class="lbl">已完成</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="pctDisplay">0%</div><div class="lbl">完成率</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="timeDisplay">0m</div><div class="lbl">预估总时长</div>
+      </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-wrap">
+      <div class="label-row"><span>今日进度</span><span id="progressText">0 / 0</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <button id="uncheckAllBtn">↩ 全部取消</button>
+      <button id="manageBtn">⚙️ 管理打卡项</button>
+    </div>
+
+    <!-- Checklist by groups -->
+    <div id="checklistGroups"></div>
+
+    <!-- Manage Panel -->
+    <div id="managePanel" style="display:none;">
+      <div class="manage-section">
+        <h3>📌 默认打卡项</h3>
+        <div id="manageDefaults"></div>
+        <div class="add-item-row">
+          <input type="text" id="newDefaultInput" placeholder="新默认项内容…" maxlength="80">
+          <input type="text" id="newDefaultTime" placeholder="时长,如20分钟" maxlength="10" style="max-width:100px">
+          <select id="newDefaultTag">
+            <option value="语文">语文</option>
+            <option value="数学">数学</option>
+            <option value="英语">英语</option>
+            <option value="其他" selected>其他</option>
+          </select>
+          <button id="addDefaultBtn">＋添加</button>
+        </div>
+      </div>
+      <div class="manage-section">
+        <h3>✏️ 自定义打卡项</h3>
+        <div id="manageCustoms"></div>
+        <div class="add-item-row">
+          <input type="text" id="newItemInput" placeholder="新打卡内容…" maxlength="80">
+          <input type="text" id="newItemTime" placeholder="时长,如20分钟" maxlength="10" style="max-width:100px">
+          <select id="newItemTag">
+            <option value="语文">语文</option>
+            <option value="数学">数学</option>
+            <option value="英语">英语</option>
+            <option value="其他" selected>其他</option>
+          </select>
+          <button id="addItemBtn">＋添加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== PAGE 2: Stats ========== -->
+  <div class="page" id="pageStats">
+
+    <!-- KPI Cards -->
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="val" id="kpiWeek">-</div><div class="lbl">本周完成率</div></div>
+      <div class="kpi-card"><div class="val" id="kpiMonth">-</div><div class="lbl">本月完成率</div></div>
+      <div class="kpi-card"><div class="val" id="kpiLongest">-</div><div class="lbl">最长连续(天)</div></div>
+    </div>
+
+    <!-- Insight -->
+    <div class="stat-insight" id="statInsight">
+      <span class="big">🌟</span>
+      <span id="insightText">加载中…</span>
+    </div>
+
+    <!-- Weekly chart -->
+    <div class="stat-section">
+      <h3>📅 本周打卡</h3>
+      <div class="week-chart" id="weekChart"></div>
+    </div>
+
+    <!-- Monthly heatmap -->
+    <div class="stat-section">
+      <h3>🗓 本月概览</h3>
+      <div id="monthHeatmap"></div>
+    </div>
+
+    <button class="back-top" id="backToChecklist">返回打卡 →</button>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'learning_checklist_v2';
+
+  // ========== DATA MODEL ==========
+  const TAG_COLORS = {
+    '语文': '#FF6B6B',
+    '数学': '#4ECDC4',
+    '英语': '#FFB020',
+    '其他': '#6C5CE7',
+  };
+
+  const DEFAULT_ITEMS = [
+    { id: 'd1', text: '背诵古诗一首',       tag: '语文', time: '15分钟', enabled: true },
+    { id: 'd2', text: '阅读课外书',         tag: '语文', time: '30分钟', enabled: true },
+    { id: 'd3', text: '做10道数学练习题',    tag: '数学', time: '20分钟', enabled: true },
+    { id: 'd4', text: '复习数学错题本',      tag: '数学', time: '15分钟', enabled: true },
+    { id: 'd5', text: '背20个英语单词',      tag: '英语', time: '20分钟', enabled: true },
+    { id: 'd6', text: '英语听力练习',        tag: '英语', time: '15分钟', enabled: true },
+  ];
+
+  function genId() { return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
+
+  function getDefaultData() {
+    return {
+      today: '',
+      defaultItems: DEFAULT_ITEMS.map(d => ({...d})),
+      customItems: [],
+      todayChecks: {},
+      history: {},
+      streak: 0,
+      longestStreak: 0,
+      milestoneReached: {},   // e.g. {3: true, 7: true}
+    };
+  }
+
+  // ========== INIT ==========
+  function todayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+  }
+
+  function yesterdayKey() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+  }
+
+  let data;
+
+  function load() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try { data = JSON.parse(raw); } catch { data = getDefaultData(); }
+    } else {
+      data = getDefaultData();
+    }
+
+    // Ensure all fields exist (migration)
+    data.defaultItems = data.defaultItems || DEFAULT_ITEMS.map(d => ({...d}));
+    data.customItems = data.customItems || [];
+    data.todayChecks = data.todayChecks || {};
+    data.history = data.history || {};
+    data.streak = data.streak || 0;
+    data.longestStreak = data.longestStreak || 0;
+    data.milestoneReached = data.milestoneReached || {};
+    data._streakDay = data._streakDay || '';
+
+    // Daily reset
+    const tk = todayKey();
+    if (data.today !== tk) {
+      const allItems = getAllEnabledItems();
+
+      // Save the previous day's data to history
+      if (data.today && allItems.length > 0) {
+        const allDone = allItems.every(it => data.todayChecks[it.id]);
+        data.history[data.today] = {
+          checks: {...data.todayChecks},
+          completedAll: allDone,
+        };
+
+        // Streak logic:
+        // - If yesterday was fully completed, the streak is still alive (unchanged)
+        // - If yesterday was NOT fully completed, the streak is broken → reset to 0
+        if (!allDone) {
+          data.streak = 0;
+        }
+        // If allDone, streak stays as-is (will be incremented when user completes today)
+      }
+
+      if (data.streak > data.longestStreak) {
+        data.longestStreak = data.streak;
+      }
+
+      data.today = tk;
+      data.todayChecks = {};
+    }
+
+    save();
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      // Storage full — silently fail
+    }
+  }
+
+  function getAllEnabledItems() {
+    const defaults = data.defaultItems.filter(d => d.enabled);
+    const customs = data.customItems.filter(c => c.enabled);
+    return [...defaults, ...customs];
+  }
+
+  function groupByTag(items) {
+    const groups = {};
+    const tagOrder = ['语文', '数学', '英语'];
+    for (const it of items) {
+      if (!groups[it.tag]) groups[it.tag] = [];
+      groups[it.tag].push(it);
+    }
+    // Sort keys: known tags first, then others
+    const sorted = {};
+    for (const t of tagOrder) { if (groups[t]) sorted[t] = groups[t]; }
+    for (const t of Object.keys(groups).sort()) { if (!sorted[t]) sorted[t] = groups[t]; }
+    return sorted;
+  }
+
+  // ========== RENDER: Checklist ==========
+  function renderChecklist() {
+    const allItems = getAllEnabledItems();
+    const groups = groupByTag(allItems);
+    const container = document.getElementById('checklistGroups');
+    container.innerHTML = '';
+
+    let totalDone = 0;
+    let total = 0;
+
+    for (const [tag, items] of Object.entries(groups)) {
+      const doneCount = items.filter(it => data.todayChecks[it.id]).length;
+      totalDone += doneCount;
+      total += items.length;
+
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'group';
+
+      const color = TAG_COLORS[tag] || '#8e8e93';
+
+      groupDiv.innerHTML = `
+        <div class="group-header">
+          <span class="group-tag">
+            <span class="dot" style="background:${color}"></span>${tag}
+          </span>
+          <span class="group-progress">${doneCount}/${items.length}</span>
+        </div>
+        <div class="group-items"></div>
+      `;
+
+      const itemsDiv = groupDiv.querySelector('.group-items');
+      for (const item of items) {
+        const done = !!data.todayChecks[item.id];
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'item' + (done ? ' done' : '');
+        const timeStr = item.time ? ` <span class="item-time">⏱ ${escapeHtml(item.time)}</span>` : '';
+        itemDiv.innerHTML = `
+          <div class="checkbox"></div>
+          <span class="text">${escapeHtml(item.text)}${timeStr}</span>
+        `;
+        itemDiv.querySelector('.checkbox').addEventListener('click', () => toggleItem(item.id));
+        itemsDiv.appendChild(itemDiv);
+      }
+
+      container.appendChild(groupDiv);
+    }
+
+    // Update global stats
+    updateGlobalStats(total, totalDone);
+    updateMotto(total, totalDone);
+
+    // Check celebration
+    if (total > 0 && totalDone === total) {
+      triggerCelebration(total);
+    } else {
+      // Not all done — if previously completed, revoke today's streak increment
+      if (data.history[data.today] && data.history[data.today].completedAll) {
+        data.history[data.today].completedAll = false;
+        if (data.streak > 0) {
+          data.streak -= 1;
+          data._streakDay = '';  // allow re-increment if re-completed
+        }
+        save();
+        // Refresh the banner to reflect the decremented streak
+        document.getElementById('streakText').textContent = `连续打卡 ${data.streak} 天`;
+      }
+    }
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function parseTime(timeStr) {
+    if (!timeStr) return 0;
+    const match = timeStr.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  }
+
+  function toggleItem(itemId) {
+    data.todayChecks[itemId] = !data.todayChecks[itemId];
+    save();
+    renderChecklist();
+  }
+
+  function updateGlobalStats(total, done) {
+    document.getElementById('totalCount').textContent = total;
+    document.getElementById('doneCount').textContent = done;
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    document.getElementById('pctDisplay').textContent = `${pct}%`;
+    document.getElementById('progressText').textContent = `${done} / ${total}`;
+    document.getElementById('progressFill').style.width = `${pct}%`;
+
+    // Total time
+    const allItems = getAllEnabledItems();
+    const totalMin = allItems.reduce((sum, it) => {
+      const m = parseTime(it.time);
+      return sum + m;
+    }, 0);
+    document.getElementById('timeDisplay').textContent = totalMin > 0 ? totalMin + 'm' : '-';
+
+    // Streak
+    document.getElementById('streakText').textContent = `连续打卡 ${data.streak} 天`;
+    const banner = document.getElementById('streakBanner');
+    const milestones = [3, 7, 14, 30, 60, 100];
+    if (milestones.includes(data.streak) && data.milestoneReached[data.streak]) {
+      banner.classList.add('milestone');
+    } else {
+      banner.classList.remove('milestone');
+    }
+  }
+
+  function updateMotto(total, done) {
+    const el = document.getElementById('motto');
+    if (total === 0) {
+      el.innerHTML = '<span class="icon">⚙️</span> 还没有打卡项，点击"管理打卡项"来添加吧！';
+    } else if (done === 0) {
+      el.innerHTML = '<span class="icon">💪</span> 新的一天，开始学习吧！';
+    } else if (done < total * 0.5) {
+      el.innerHTML = '<span class="icon">🌟</span> 好的开始是成功的一半，继续加油！';
+    } else if (done < total) {
+      el.innerHTML = '<span class="icon">🔥</span> 胜利在望，坚持就是胜利！';
+    } else {
+      el.innerHTML = '<span class="icon">🏆</span> 全部完成，你太厉害了！';
+    }
+  }
+
+  // ========== Celebration ==========
+  let confettiRunning = false;
+
+  function triggerCelebration(total) {
+    const todayHistory = data.history[data.today];
+    const alreadyDoneToday = todayHistory && todayHistory.completedAll;
+    if (alreadyDoneToday) return; // Don't re-celebrate on repeated completions
+
+    // Save history with completedAll=true
+    if (!todayHistory) {
+      data.history[data.today] = { checks: {}, completedAll: false, streakCounted: false };
+    }
+    data.history[data.today].completedAll = true;
+
+    // Only increment streak once per day — use a top-level guard
+    // that survives history-entry overwrites from the daily reset
+    if (!data._streakDay || data._streakDay !== data.today) {
+      data.streak = (data.streak || 0) + 1;
+      if (data.streak > data.longestStreak) {
+        data.longestStreak = data.streak;
+      }
+      data._streakDay = data.today;
+      data.history[data.today].streakCounted = true;
+
+      // Check for milestone right after incrementing
+      const milestones = [3, 7, 14, 30, 60, 100];
+      if (milestones.includes(data.streak) && !data.milestoneReached[data.streak]) {
+        data.milestoneReached[data.streak] = true;
+        save();
+        // Show after a brief delay so celebration modal appears first
+        setTimeout(() => showMilestone(data.streak), 1500);
+      }
+    }
+
+    save();
+
+    // Immediately update streak banner
+    document.getElementById('streakText').textContent = `连续打卡 ${data.streak} 天`;
+
+    // Confetti
+    startConfetti();
+
+    // Show modal
+    document.getElementById('celebTotal').textContent = total;
+    document.getElementById('celebStreak').textContent = data.streak;
+    const msgEl = document.getElementById('celebMsg');
+    if (data.streak >= 100) {
+      msgEl.textContent = '🏆 连续100天！传奇级别的自律！';
+    } else if (data.streak >= 60) {
+      msgEl.textContent = '🏅 连续60天！你已超越99%的人！';
+    } else if (data.streak >= 30) {
+      msgEl.textContent = '👑 整整一个月！毅力令人敬佩！';
+    } else if (data.streak >= 14) {
+      msgEl.textContent = '💎 两周不间断！自律已成习惯！';
+    } else if (data.streak >= 7) {
+      msgEl.textContent = `🔥 连续 ${data.streak} 天！习惯正在养成！`;
+    } else if (data.streak >= 3) {
+      msgEl.textContent = `🌟 连续 ${data.streak} 天！好的开始！`;
+    } else {
+      msgEl.textContent = '每一天的坚持，都是未来的底气！';
+    }
+    document.getElementById('celebrationOverlay').classList.remove('hidden');
+  }
+
+  function closeCelebration() {
+    document.getElementById('celebrationOverlay').classList.add('hidden');
+    stopConfetti();
+  }
+
+  // Confetti using canvas
+  let confettiParticles = [];
+  let confettiAnimId = null;
+
+  function startConfetti() {
+    if (confettiRunning) return;
+    confettiRunning = true;
+    const canvas = document.getElementById('confettiCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const colors = ['#FF6B6B', '#4ECDC4', '#FFD93D', '#6C5CE7', '#FF8C42', '#34C759', '#007AFF', '#FF3B7F'];
+    confettiParticles = [];
+    for (let i = 0; i < 120; i++) {
+      confettiParticles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height - canvas.height,
+        w: Math.random() * 10 + 5,
+        h: Math.random() * 6 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vx: (Math.random() - 0.5) * 3,
+        vy: Math.random() * 3 + 2,
+        rot: Math.random() * 360,
+        rotV: (Math.random() - 0.5) * 10,
+        opacity: 1,
+      });
+    }
+
+    function animate() {
+      if (!confettiRunning) { confettiAnimId = null; return; }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let anyVisible = false;
+      for (const p of confettiParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.rotV;
+        p.vy += 0.02;
+        if (p.y > canvas.height + 20) p.opacity -= 0.02;
+        if (p.opacity <= 0) continue;
+        anyVisible = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rot * Math.PI) / 180);
+        ctx.globalAlpha = Math.max(0, p.opacity);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      if (anyVisible) {
+        confettiAnimId = requestAnimationFrame(animate);
+      } else {
+        confettiRunning = false;
+        confettiAnimId = null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    confettiAnimId = requestAnimationFrame(animate);
+
+    // Auto-stop after 4s
+    setTimeout(() => {
+      if (confettiRunning) stopConfetti();
+    }, 4000);
+  }
+
+  function stopConfetti() {
+    confettiRunning = false;
+    if (confettiAnimId) {
+      cancelAnimationFrame(confettiAnimId);
+      confettiAnimId = null;
+    }
+    const canvas = document.getElementById('confettiCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // ========== Milestone ==========
+  function showMilestone(days) {
+    const msgs = {
+      3:  { emoji: '🌟', title: '连续3天！', msg: '三天坚持，你已经迈出了不起的第一步！继续保持！' },
+      7:  { emoji: '🔥', title: '连续7天！', msg: '一周的坚持！习惯正在慢慢养成，你太棒了！' },
+      14: { emoji: '💎', title: '连续14天！', msg: '两周不间断！自律已经刻进了你的日常！' },
+      30: { emoji: '👑', title: '连续30天！', msg: '整整一个月全勤！你的毅力令人敬佩，无人能挡！' },
+      60: { emoji: '🏅', title: '连续60天！', msg: '两个月如一日！你已经超越了99%的人！' },
+      100:{ emoji: '🏆', title: '连续100天！', msg: '百日坚持！这是传奇级别的自律，你值得所有掌声！' },
+    };
+    const m = msgs[days] || msgs[7];
+    document.getElementById('milestoneTitle').textContent = m.title;
+    document.getElementById('milestoneMsg').textContent = m.msg;
+    document.getElementById('milestoneOverlay').querySelector('.emoji-big').textContent = m.emoji;
+    document.getElementById('milestoneOverlay').classList.remove('hidden');
+  }
+
+  function closeMilestone() {
+    document.getElementById('milestoneOverlay').classList.add('hidden');
+  }
+
+  // ========== RENDER: Manage Panel ==========
+  function renderManage() {
+    // Default items
+    const defContainer = document.getElementById('manageDefaults');
+    defContainer.innerHTML = '';
+    for (const item of data.defaultItems) {
+      const div = document.createElement('div');
+      div.className = 'manage-item' + (item.enabled ? '' : ' disabled');
+      div.innerHTML = `
+        <span class="text editable-text" data-id="${item.id}" data-type="default" data-field="text" title="点击编辑内容">${escapeHtml(item.text)}</span>
+        <span class="time-badge editable-time" data-id="${item.id}" data-type="default" data-field="time" title="点击编辑时长">${escapeHtml(item.time || '')}</span>
+        <span class="mini-tag editable-tag" data-id="${item.id}" data-type="default" data-field="tag" title="点击切换标签" style="background:${TAG_COLORS[item.tag] || '#8e8e93'};cursor:pointer">${item.tag}</span>
+        <button class="toggle ${item.enabled ? 'on' : ''}" data-action="toggle" data-id="${item.id}" data-type="default"></button>
+        <button class="del-mini" data-action="delete" data-id="${item.id}" data-type="default" title="删除默认项">×</button>
+      `;
+      defContainer.appendChild(div);
+    }
+
+    // Custom items
+    const cusContainer = document.getElementById('manageCustoms');
+    cusContainer.innerHTML = '';
+    for (const item of data.customItems) {
+      const div = document.createElement('div');
+      div.className = 'manage-item' + (item.enabled ? '' : ' disabled');
+      div.innerHTML = `
+        <span class="text editable-text" data-id="${item.id}" data-type="custom" data-field="text" title="点击编辑内容">${escapeHtml(item.text)}</span>
+        <span class="time-badge editable-time" data-id="${item.id}" data-type="custom" data-field="time" title="点击编辑时长">${escapeHtml(item.time || '')}</span>
+        <span class="mini-tag editable-tag" data-id="${item.id}" data-type="custom" data-field="tag" title="点击切换标签" style="background:${TAG_COLORS[item.tag] || '#8e8e93'};cursor:pointer">${item.tag}</span>
+        <button class="toggle ${item.enabled ? 'on' : ''}" data-action="toggle" data-id="${item.id}" data-type="custom"></button>
+        <button class="del-mini" data-action="delete" data-id="${item.id}" data-type="custom" title="删除">×</button>
+      `;
+      cusContainer.appendChild(div);
+    }
+
+    // Events — toggles & deletes
+    document.querySelectorAll('#manageDefaults [data-action="toggle"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleItemEnabled(btn.dataset.id, 'default'));
+    });
+    document.querySelectorAll('#manageCustoms [data-action="toggle"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleItemEnabled(btn.dataset.id, 'custom'));
+    });
+    document.querySelectorAll('[data-action="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.type === 'default') {
+          deleteDefaultItem(btn.dataset.id);
+        } else {
+          deleteCustomItem(btn.dataset.id);
+        }
+      });
+    });
+
+    // Events — inline edit for text
+    document.querySelectorAll('#manageDefaults .editable-text, #manageCustoms .editable-text').forEach(span => {
+      span.addEventListener('click', () => startEditText(span));
+    });
+
+    // Events — inline edit for tag
+    document.querySelectorAll('#manageDefaults .editable-tag, #manageCustoms .editable-tag').forEach(span => {
+      span.addEventListener('click', (e) => { e.stopPropagation(); startEditTag(span); });
+    });
+
+    // Events — inline edit for time
+    document.querySelectorAll('#manageDefaults .editable-time, #manageCustoms .editable-time').forEach(span => {
+      span.addEventListener('click', (e) => { e.stopPropagation(); startEditTime(span); });
+    });
+  }
+
+  function startEditText(span) {
+    if (span.querySelector('input')) return; // already editing
+    const itemId = span.dataset.id;
+    const itemType = span.dataset.type;
+    const list = itemType === 'default' ? data.defaultItems : data.customItems;
+    const item = list.find(i => i.id === itemId);
+    if (!item) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = item.text;
+    input.maxLength = 80;
+    input.style.cssText = 'flex:1;height:30px;border:2px solid var(--accent);border-radius:8px;padding:0 8px;font-size:14px;outline:none;min-width:0';
+    span.textContent = '';
+    span.appendChild(input);
+    input.focus();
+    input.select();
+
+    const finish = () => {
+      const newText = input.value.trim();
+      if (newText && newText !== item.text) {
+        item.text = newText;
+        save();
+        renderManage();
+        renderChecklist();
+      } else {
+        renderManage(); // restore original display
+      }
+    };
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { input.blur(); }
+      if (e.key === 'Escape') { input.value = item.text; input.blur(); }
+    });
+  }
+
+  function startEditTag(span) {
+    if (span.querySelector('select')) return;
+    const itemId = span.dataset.id;
+    const itemType = span.dataset.type;
+    const list = itemType === 'default' ? data.defaultItems : data.customItems;
+    const item = list.find(i => i.id === itemId);
+    if (!item) return;
+
+    const availableTags = ['语文', '数学', '英语', '其他'];
+    const select = document.createElement('select');
+    select.style.cssText = 'font-size:12px;font-weight:600;padding:4px 4px;border-radius:8px;border:2px solid var(--accent);outline:none;background:#fff;color:#333';
+    for (const t of availableTags) {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      if (t === item.tag) opt.selected = true;
+      select.appendChild(opt);
+    }
+    span.textContent = '';
+    span.appendChild(select);
+    select.focus();
+
+    const finish = () => {
+      const newTag = select.value;
+      if (newTag !== item.tag) {
+        item.tag = newTag;
+        save();
+        renderManage();
+        renderChecklist();
+      } else {
+        renderManage();
+      }
+    };
+    select.addEventListener('blur', finish);
+    select.addEventListener('change', () => select.blur());
+  }
+
+  function startEditTime(span) {
+    if (span.querySelector('input')) return;
+    const itemId = span.dataset.id;
+    const itemType = span.dataset.type;
+    const list = itemType === 'default' ? data.defaultItems : data.customItems;
+    const item = list.find(i => i.id === itemId);
+    if (!item) return;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = item.time || '';
+    input.placeholder = '如:20分钟';
+    input.maxLength = 10;
+    input.style.cssText = 'width:72px;height:26px;border:2px solid var(--accent);border-radius:8px;padding:0 6px;font-size:12px;outline:none;text-align:center';
+    span.textContent = '';
+    span.appendChild(input);
+    input.focus();
+    input.select();
+
+    const finish = () => {
+      const newTime = input.value.trim();
+      item.time = newTime;
+      save();
+      renderManage();
+      renderChecklist();
+    };
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { input.blur(); }
+      if (e.key === 'Escape') { input.value = item.time || ''; input.blur(); }
+    });
+  }
+
+  function toggleItemEnabled(itemId, type) {
+    const list = type === 'default' ? data.defaultItems : data.customItems;
+    const item = list.find(i => i.id === itemId);
+    if (!item) return;
+    item.enabled = !item.enabled;
+    // If disabling, remove from today's checks
+    if (!item.enabled) {
+      delete data.todayChecks[itemId];
+    }
+    save();
+    renderManage();
+    renderChecklist();
+  }
+
+  function deleteDefaultItem(itemId) {
+    if (!confirm('确定要删除这个默认打卡项吗？')) return;
+    data.defaultItems = data.defaultItems.filter(i => i.id !== itemId);
+    delete data.todayChecks[itemId];
+    save();
+    renderManage();
+    renderChecklist();
+  }
+
+  function deleteCustomItem(itemId) {
+    if (!confirm('确定要删除这个打卡项吗？')) return;
+    data.customItems = data.customItems.filter(i => i.id !== itemId);
+    delete data.todayChecks[itemId];
+    save();
+    renderManage();
+    renderChecklist();
+  }
+
+  function addDefaultItem() {
+    const input = document.getElementById('newDefaultInput');
+    const timeInput = document.getElementById('newDefaultTime');
+    const tagSelect = document.getElementById('newDefaultTag');
+    const text = input.value.trim();
+    if (!text) return;
+    data.defaultItems.push({
+      id: 'd' + genId(),
+      text,
+      time: timeInput.value.trim(),
+      tag: tagSelect.value,
+      enabled: true,
+    });
+    input.value = '';
+    timeInput.value = '';
+    save();
+    renderManage();
+    renderChecklist();
+  }
+
+  function addCustomItem() {
+    const input = document.getElementById('newItemInput');
+    const timeInput = document.getElementById('newItemTime');
+    const tagSelect = document.getElementById('newItemTag');
+    const text = input.value.trim();
+    if (!text) return;
+    data.customItems.push({
+      id: genId(),
+      text,
+      time: timeInput.value.trim(),
+      tag: tagSelect.value,
+      enabled: true,
+    });
+    input.value = '';
+    timeInput.value = '';
+    save();
+    renderManage();
+    renderChecklist();
+  }
+
+  function uncheckAll() {
+    data.todayChecks = {};
+    save();
+    renderChecklist();
+  }
+
+  // ========== RENDER: Stats Page ==========
+  function renderStats() {
+    const weekData = getWeekData();
+    const monthData = getMonthData();
+
+    // KPI
+    const weekPct = calcPct(weekData);
+    const monthPct = calcPct(monthData);
+    document.getElementById('kpiWeek').textContent = weekPct + '%';
+    document.getElementById('kpiMonth').textContent = monthPct + '%';
+    document.getElementById('kpiLongest').textContent = data.longestStreak;
+
+    // Insight
+    let insight = '';
+    if (data.streak >= 7) {
+      insight = '你已经坚持一周了！习惯正在养成！🌱';
+    } else if (data.streak >= 3) {
+      insight = '连续坚持中，继续保持这股势头！⚡';
+    }
+    if (monthPct >= 80 && monthData.days && monthData.days.length >= 7) {
+      insight = '这个月表现优异，自律即自由！🏅';
+    }
+    if (weekData.filter(d => d.pct === 100).length >= 5) {
+      insight = '本周全勤在望！你的毅力令人敬佩！👑';
+    }
+    if (!insight) {
+      insight = '每一段旅程都始于第一步，坚持下去！🚀';
+    }
+    document.getElementById('insightText').textContent = insight;
+
+    // Week chart
+    renderWeekChart(weekData);
+
+    // Month heatmap
+    renderMonthHeatmap(monthData);
+  }
+
+  function getWeekData() {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const result = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const key = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+      const isToday = key === data.today;
+      const isFuture = d > now;
+      const h = data.history[key];
+      const allItems = getAllEnabledItems();
+      const total = allItems.length;
+      let done = 0;
+      if (isToday) {
+        done = allItems.filter(it => data.todayChecks[it.id]).length;
+      } else if (h) {
+        done = allItems.filter(it => h.checks[it.id]).length;
+      }
+      const pct = (total === 0 || isFuture) ? 0 : Math.round((done / total) * 100);
+      result.push({
+        key,
+        label: ['一','二','三','四','五','六','日'][i],
+        date: d.getDate(),
+        pct,
+        done,
+        total,
+        isToday,
+        isFuture,
+      });
+    }
+    return result;
+  }
+
+  function getMonthData() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-based
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+    const allItems = getAllEnabledItems();
+    const result = [];
+    for (let i = 1; i <= daysInMonth; i++) {
+      const key = `${year}/${month+1}/${i}`;
+      const isToday = key === data.today;
+      const isFuture = new Date(year, month, i) > now;
+      let pct = 0;
+      if (!isFuture) {
+        if (isToday) {
+          const done = allItems.filter(it => data.todayChecks[it.id]).length;
+          pct = allItems.length === 0 ? 0 : Math.round((done / allItems.length) * 100);
+        } else {
+          const h = data.history[key];
+          if (h) {
+            const done = allItems.filter(it => h.checks[it.id]).length;
+            pct = allItems.length === 0 ? 0 : Math.round((done / allItems.length) * 100);
+          }
+        }
+      }
+      result.push({
+        key, day: i, pct, isToday, isFuture,
+        weekday: new Date(year, month, i).getDay(),
+      });
+    }
+    return { year, month, daysInMonth, firstDay, days: result };
+  }
+
+  function calcPct(weekData) {
+    const entries = Array.isArray(weekData) ? weekData : weekData.days.filter(d => !d.isFuture);
+    if (entries.length === 0) return 0;
+    const sum = entries.reduce((s, d) => s + d.pct, 0);
+    return Math.round(sum / entries.length);
+  }
+
+  function renderWeekChart(weekData) {
+    const container = document.getElementById('weekChart');
+    container.innerHTML = '';
+    const maxPct = Math.max(...weekData.map(d => d.pct), 1);
+    for (const d of weekData) {
+      const height = d.isFuture ? 4 : Math.max(4, (d.pct / 100) * 120);
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      col.innerHTML = `
+        <div class="bar-val">${d.isFuture ? '-' : d.pct + '%'}</div>
+        <div class="bar ${d.isToday ? 'today' : ''} ${d.pct === 0 || d.isFuture ? 'zero' : ''}"
+             style="height:${height}px"></div>
+        <div class="bar-label">${d.label}<br><small>${d.date}</small></div>
+      `;
+      container.appendChild(col);
+    }
+  }
+
+  function renderMonthHeatmap(monthData) {
+    const container = document.getElementById('monthHeatmap');
+    container.innerHTML = '';
+
+    // Weekday headers
+    const weekLabels = ['日','一','二','三','四','五','六'];
+    const grid = document.createElement('div');
+    grid.className = 'month-grid';
+    for (const w of weekLabels) {
+      const lbl = document.createElement('div');
+      lbl.className = 'weekday-label';
+      lbl.textContent = w;
+      grid.appendChild(lbl);
+    }
+
+    // Empty cells before first day
+    for (let i = 0; i < monthData.firstDay; i++) {
+      const empty = document.createElement('div');
+      grid.appendChild(empty);
+    }
+
+    // Day cells
+    for (const d of monthData.days) {
+      const cell = document.createElement('div');
+      let cls = 'day-cell';
+      if (d.isFuture) {
+        cls += ' future';
+      } else {
+        if (d.pct === 100) cls += ' grade-3';
+        else if (d.pct >= 50) cls += ' grade-2';
+        else if (d.pct > 0) cls += ' grade-1';
+        else cls += ' grade-0';
+      }
+      if (d.isToday) cls += ' today';
+      cell.className = cls;
+      cell.textContent = d.day;
+      cell.title = `${monthData.year}/${monthData.month+1}/${d.day}: ${d.isFuture ? '未到来' : d.pct + '%'}`;
+      grid.appendChild(cell);
+    }
+    container.appendChild(grid);
+
+    // Legend
+    const legend = document.createElement('div');
+    legend.style.cssText = 'display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text-secondary)';
+    legend.innerHTML = `
+      <span>少</span>
+      <span style="width:14px;height:14px;border-radius:3px;background:#e5e5ea"></span>
+      <span style="width:14px;height:14px;border-radius:3px;background:#b8e6c8"></span>
+      <span style="width:14px;height:14px;border-radius:3px;background:#6dd98c"></span>
+      <span style="width:14px;height:14px;border-radius:3px;background:#34c759"></span>
+      <span>多</span>
+    `;
+    container.appendChild(legend);
+  }
+
+  // ========== Tab Switching ==========
+  function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(`page${tabName === 'checklist' ? 'Checklist' : 'Stats'}`).classList.add('active');
+
+    if (tabName === 'stats') {
+      renderStats();
+    }
+  }
+
+  // ========== Date Display ==========
+  function updateDateDisplay() {
+    const d = new Date();
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    document.getElementById('dateDisplay').textContent =
+      `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 星期${weekdays[d.getDay()]}`;
+  }
+
+  // ========== EVENT BINDINGS ==========
+  function bindEvents() {
+    // Tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // Toolbar
+    document.getElementById('uncheckAllBtn').addEventListener('click', uncheckAll);
+    document.getElementById('manageBtn').addEventListener('click', () => {
+      const panel = document.getElementById('managePanel');
+      const btn = document.getElementById('manageBtn');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        btn.textContent = '✅ 完成管理';
+        renderManage();
+      } else {
+        panel.style.display = 'none';
+        btn.textContent = '⚙️ 管理打卡项';
+      }
+    });
+
+    // Add default item
+    document.getElementById('addDefaultBtn').addEventListener('click', addDefaultItem);
+    document.getElementById('newDefaultInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addDefaultItem();
+    });
+    document.getElementById('newDefaultTime').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addDefaultItem();
+    });
+
+    // Add custom item
+    document.getElementById('addItemBtn').addEventListener('click', addCustomItem);
+    document.getElementById('newItemInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addCustomItem();
+    });
+    document.getElementById('newItemTime').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addCustomItem();
+    });
+
+    // Back to checklist from stats
+    document.getElementById('backToChecklist').addEventListener('click', () => switchTab('checklist'));
+
+    // Modal close buttons
+    document.getElementById('celebCloseBtn').addEventListener('click', closeCelebration);
+    document.getElementById('milestoneCloseBtn').addEventListener('click', closeMilestone);
+
+    // Click overlay background to close
+    document.getElementById('celebrationOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeCelebration();
+    });
+    document.getElementById('milestoneOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeMilestone();
+    });
+
+    // ESC key to close modals
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeCelebration();
+        closeMilestone();
+      }
+    });
+  }
+
+  // ========== MAIN INIT ==========
+  function init() {
+    load();
+    updateDateDisplay();
+    renderChecklist();
+    bindEvents();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
