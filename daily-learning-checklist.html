@@ -455,19 +455,12 @@
     <!-- Manage Panel -->
     <div id="managePanel" style="display:none;">
       <div class="manage-section">
-        <h3>📌 默认打卡项</h3>
+        <h3>☁️ 云同步 <span style="font-weight:400;font-size:11px;color:var(--text-secondary)" id="syncStatus">未设置</span></h3>
+        <button id="setupSyncBtn" style="width:100%;height:38px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);font-size:13px;cursor:pointer;margin-bottom:16px">🔑 设置同步 Token</button>
+      </div>
+      <div class="manage-section">
+        <h3>📌 默认打卡项 <span style="font-weight:400;font-size:11px;color:var(--text-secondary)">（由部署统一管理）</span></h3>
         <div id="manageDefaults"></div>
-        <div class="add-item-row">
-          <input type="text" id="newDefaultInput" placeholder="新默认项内容…" maxlength="80">
-          <input type="text" id="newDefaultTime" placeholder="时长,如20分钟" maxlength="10" style="max-width:100px">
-          <select id="newDefaultTag">
-            <option value="语文">语文</option>
-            <option value="数学">数学</option>
-            <option value="英语">英语</option>
-            <option value="其他" selected>其他</option>
-          </select>
-          <button id="addDefaultBtn">＋添加</button>
-        </div>
       </div>
       <div class="manage-section">
         <h3>✏️ 自定义打卡项</h3>
@@ -532,27 +525,153 @@
     '其他': '#6C5CE7',
   };
 
+  // ═══════════════════════════════════════
+  // 默认打卡项：修改后部署到 GitHub，所有设备刷新即同步
+  // ═══════════════════════════════════════
+  const CONFIG_VERSION = 2;
+
   const DEFAULT_ITEMS = [
-    { id: 'd1', text: '背诵古诗一首',       tag: '语文', time: '15分钟', enabled: true },
-    { id: 'd2', text: '阅读课外书',         tag: '语文', time: '30分钟', enabled: true },
-    { id: 'd3', text: '做10道数学练习题',    tag: '数学', time: '20分钟', enabled: true },
-    { id: 'd4', text: '复习数学错题本',      tag: '数学', time: '15分钟', enabled: true },
-    { id: 'd5', text: '背20个英语单词',      tag: '英语', time: '20分钟', enabled: true },
-    { id: 'd6', text: '英语听力练习',        tag: '英语', time: '15分钟', enabled: true },
+    { id: 'd1', text: '背七上古诗词',         tag: '语文', time: '10分钟' },
+    { id: 'd2', text: '看邵鑫讲西游记',       tag: '语文', time: '20分钟' },
+    { id: 'd3', text: '预习七上数学/看胡小群L7数学课', tag: '数学', time: '15分钟' },
+    { id: 'd4', text: '课后数学练习',         tag: '数学', time: '10分钟' },
+    { id: 'd5', text: 'GW F级别',            tag: '英语', time: '15分钟' },
+    { id: 'd6', text: '英语磨耳朵',           tag: '英语', time: '20分钟' },
+    { id: 'd7', text: '英语绘本泛读',         tag: '英语', time: '20分钟' },
   ];
+
+  // ═══════════════════════════════════════
+  // GitHub Gist 云同步
+  // 首次使用需在管理面板设置 Token（仅 gist 权限）
+  // ═══════════════════════════════════════
+  const SYNC_TOKEN_KEY  = '_syncToken';
+  const SYNC_GIST_ID_KEY = '_syncGistId';
+  const SYNC_FILE = 'checklist-sync.json';
+  let syncTimer = null;
+
+  function getSyncToken() {
+    return localStorage.getItem(SYNC_TOKEN_KEY);
+  }
+
+  function hasSyncToken() {
+    return !!getSyncToken();
+  }
+
+  async function syncLoad() {
+    const token = getSyncToken();
+    const gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
+    if (!token || !gistId) return;
+    try {
+      const resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (!resp.ok) return;
+      const gist = await resp.json();
+      const raw = gist.files?.[SYNC_FILE]?.content;
+      if (!raw) return;
+      const remote = JSON.parse(raw);
+      if (!remote || typeof remote !== 'object') return;
+
+      if (remote.streak !== undefined)        data.streak = remote.streak;
+      if (remote.longestStreak !== undefined) data.longestStreak = Math.max(data.longestStreak || 0, remote.longestStreak);
+      if (remote._streakDay !== undefined)    data._streakDay = remote._streakDay;
+      if (remote.milestoneReached)            Object.assign(data.milestoneReached, remote.milestoneReached);
+      if (remote.disabledDefaultIds)          data.disabledDefaultIds = remote.disabledDefaultIds;
+      if (remote.customItems)                 data.customItems = remote.customItems;
+      if (remote.history)                     Object.assign(data.history, remote.history);
+      if (remote.todayChecks && remote.today === data.today) {
+        Object.assign(data.todayChecks, remote.todayChecks);
+      }
+
+      data.defaultItems = DEFAULT_ITEMS.map(d => ({
+        ...d,
+        enabled: !data.disabledDefaultIds.includes(d.id),
+      }));
+      save();
+    } catch(e) { /* offline — noop */ }
+  }
+
+  async function syncPush() {
+    const token = getSyncToken();
+    if (!token) return;
+    const syncData = {
+      today: data.today,
+      todayChecks: data.todayChecks,
+      history: data.history,
+      streak: data.streak,
+      longestStreak: data.longestStreak,
+      _streakDay: data._streakDay,
+      milestoneReached: data.milestoneReached,
+      disabledDefaultIds: data.disabledDefaultIds,
+      customItems: data.customItems,
+      configVersion: data.configVersion,
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      const gistId = localStorage.getItem(SYNC_GIST_ID_KEY);
+      const body = { files: { [SYNC_FILE]: { content: JSON.stringify(syncData) } } };
+      let resp;
+      if (gistId) {
+        resp = await fetch(`https://api.github.com/gists/${gistId}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } else {
+        resp = await fetch('https://api.github.com/gists', {
+          method: 'POST',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: '学习打卡数据同步', public: false, ...body }),
+        });
+      }
+      if (resp.ok) {
+        const gist = await resp.json();
+        localStorage.setItem(SYNC_GIST_ID_KEY, gist.id);
+      }
+    } catch(e) { /* offline — noop */ }
+  }
+
+  function syncPushDebounced() {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncPush, 2000);
+  }
+
+  function setupSyncToken() {
+    const current = getSyncToken() || '';
+    const token = prompt(
+      '☁️ 设置云同步 Token（仅需 gist 权限）\n\n' +
+      '1. 打开 github.com/settings/tokens/new\n' +
+      '2. Note 填 checklist-sync\n' +
+      '3. 只勾选 gist 权限\n' +
+      '4. 生成后粘贴到此处\n\n' +
+      '留空则关闭云同步功能',
+      current
+    );
+    if (token === null) return; // cancelled
+    if (token.trim()) {
+      localStorage.setItem(SYNC_TOKEN_KEY, token.trim());
+      alert('✅ Token 已保存！云同步已开启。');
+    } else {
+      localStorage.removeItem(SYNC_TOKEN_KEY);
+      localStorage.removeItem(SYNC_GIST_ID_KEY);
+      alert('☁️ Token 已清除，云同步已关闭。');
+    }
+  }
 
   function genId() { return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
 
   function getDefaultData() {
     return {
       today: '',
-      defaultItems: DEFAULT_ITEMS.map(d => ({...d})),
+      disabledDefaultIds: [],     // IDs of default items user has toggled off
       customItems: [],
       todayChecks: {},
       history: {},
       streak: 0,
       longestStreak: 0,
-      milestoneReached: {},   // e.g. {3: true, 7: true}
+      milestoneReached: {},
+      _streakDay: '',
+      configVersion: CONFIG_VERSION,
     };
   }
 
@@ -579,7 +698,7 @@
     }
 
     // Ensure all fields exist (migration)
-    data.defaultItems = data.defaultItems || DEFAULT_ITEMS.map(d => ({...d}));
+    data.disabledDefaultIds = data.disabledDefaultIds || [];
     data.customItems = data.customItems || [];
     data.todayChecks = data.todayChecks || {};
     data.history = data.history || {};
@@ -588,7 +707,22 @@
     data.milestoneReached = data.milestoneReached || {};
     data._streakDay = data._streakDay || '';
 
-    // Daily reset
+    // Config version check: if HTML defaults changed, reset overrides
+    if (data.configVersion !== CONFIG_VERSION) {
+      data.disabledDefaultIds = [];
+      data.configVersion = CONFIG_VERSION;
+    }
+
+    // Always rebuild defaultItems from hard-coded list
+    data.defaultItems = DEFAULT_ITEMS.map(d => ({
+      ...d,
+      enabled: !data.disabledDefaultIds.includes(d.id),
+    }));
+
+    save();
+  }
+
+  function dailyReset() {
     const tk = todayKey();
     if (data.today !== tk) {
       const allItems = getAllEnabledItems();
@@ -627,6 +761,7 @@
     } catch (e) {
       // Storage full — silently fail
     }
+    syncPushDebounced(); // fire-and-forget cloud sync
   }
 
   function getAllEnabledItems() {
@@ -946,23 +1081,22 @@
 
   // ========== RENDER: Manage Panel ==========
   function renderManage() {
-    // Default items
+    // Default items — toggle only, no edit/delete
     const defContainer = document.getElementById('manageDefaults');
     defContainer.innerHTML = '';
     for (const item of data.defaultItems) {
       const div = document.createElement('div');
       div.className = 'manage-item' + (item.enabled ? '' : ' disabled');
       div.innerHTML = `
-        <span class="text editable-text" data-id="${item.id}" data-type="default" data-field="text" title="点击编辑内容">${escapeHtml(item.text)}</span>
-        <span class="time-badge editable-time" data-id="${item.id}" data-type="default" data-field="time" title="点击编辑时长">${escapeHtml(item.time || '')}</span>
-        <span class="mini-tag editable-tag" data-id="${item.id}" data-type="default" data-field="tag" title="点击切换标签" style="background:${TAG_COLORS[item.tag] || '#8e8e93'};cursor:pointer">${item.tag}</span>
+        <span class="text">${escapeHtml(item.text)}</span>
+        <span class="time-badge">${escapeHtml(item.time || '')}</span>
+        <span class="mini-tag" style="background:${TAG_COLORS[item.tag] || '#8e8e93'}">${item.tag}</span>
         <button class="toggle ${item.enabled ? 'on' : ''}" data-action="toggle" data-id="${item.id}" data-type="default"></button>
-        <button class="del-mini" data-action="delete" data-id="${item.id}" data-type="default" title="删除默认项">×</button>
       `;
       defContainer.appendChild(div);
     }
 
-    // Custom items
+    // Custom items — fully editable
     const cusContainer = document.getElementById('manageCustoms');
     cusContainer.innerHTML = '';
     for (const item of data.customItems) {
@@ -978,35 +1112,27 @@
       cusContainer.appendChild(div);
     }
 
-    // Events — toggles & deletes
-    document.querySelectorAll('#manageDefaults [data-action="toggle"]').forEach(btn => {
+    // Events — toggles
+    defContainer.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', () => toggleItemEnabled(btn.dataset.id, 'default'));
     });
-    document.querySelectorAll('#manageCustoms [data-action="toggle"]').forEach(btn => {
+    cusContainer.querySelectorAll('[data-action="toggle"]').forEach(btn => {
       btn.addEventListener('click', () => toggleItemEnabled(btn.dataset.id, 'custom'));
     });
-    document.querySelectorAll('[data-action="delete"]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.type === 'default') {
-          deleteDefaultItem(btn.dataset.id);
-        } else {
-          deleteCustomItem(btn.dataset.id);
-        }
-      });
+
+    // Events — delete custom items
+    cusContainer.querySelectorAll('[data-action="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => deleteCustomItem(btn.dataset.id));
     });
 
-    // Events — inline edit for text
-    document.querySelectorAll('#manageDefaults .editable-text, #manageCustoms .editable-text').forEach(span => {
+    // Events — inline edit for custom items only
+    cusContainer.querySelectorAll('.editable-text').forEach(span => {
       span.addEventListener('click', () => startEditText(span));
     });
-
-    // Events — inline edit for tag
-    document.querySelectorAll('#manageDefaults .editable-tag, #manageCustoms .editable-tag').forEach(span => {
+    cusContainer.querySelectorAll('.editable-tag').forEach(span => {
       span.addEventListener('click', (e) => { e.stopPropagation(); startEditTag(span); });
     });
-
-    // Events — inline edit for time
-    document.querySelectorAll('#manageDefaults .editable-time, #manageCustoms .editable-time').forEach(span => {
+    cusContainer.querySelectorAll('.editable-time').forEach(span => {
       span.addEventListener('click', (e) => { e.stopPropagation(); startEditTime(span); });
     });
   }
@@ -1118,23 +1244,23 @@
   }
 
   function toggleItemEnabled(itemId, type) {
-    const list = type === 'default' ? data.defaultItems : data.customItems;
-    const item = list.find(i => i.id === itemId);
-    if (!item) return;
-    item.enabled = !item.enabled;
-    // If disabling, remove from today's checks
-    if (!item.enabled) {
-      delete data.todayChecks[itemId];
+    if (type === 'default') {
+      // Toggle disabledDefaultIds
+      const idx = data.disabledDefaultIds.indexOf(itemId);
+      if (idx >= 0) {
+        data.disabledDefaultIds.splice(idx, 1); // re-enable
+        data.defaultItems.find(d => d.id === itemId).enabled = true;
+      } else {
+        data.disabledDefaultIds.push(itemId);    // disable
+        data.defaultItems.find(d => d.id === itemId).enabled = false;
+        delete data.todayChecks[itemId];
+      }
+    } else {
+      const item = data.customItems.find(i => i.id === itemId);
+      if (!item) return;
+      item.enabled = !item.enabled;
+      if (!item.enabled) delete data.todayChecks[itemId];
     }
-    save();
-    renderManage();
-    renderChecklist();
-  }
-
-  function deleteDefaultItem(itemId) {
-    if (!confirm('确定要删除这个默认打卡项吗？')) return;
-    data.defaultItems = data.defaultItems.filter(i => i.id !== itemId);
-    delete data.todayChecks[itemId];
     save();
     renderManage();
     renderChecklist();
@@ -1144,26 +1270,6 @@
     if (!confirm('确定要删除这个打卡项吗？')) return;
     data.customItems = data.customItems.filter(i => i.id !== itemId);
     delete data.todayChecks[itemId];
-    save();
-    renderManage();
-    renderChecklist();
-  }
-
-  function addDefaultItem() {
-    const input = document.getElementById('newDefaultInput');
-    const timeInput = document.getElementById('newDefaultTime');
-    const tagSelect = document.getElementById('newDefaultTag');
-    const text = input.value.trim();
-    if (!text) return;
-    data.defaultItems.push({
-      id: 'd' + genId(),
-      text,
-      time: timeInput.value.trim(),
-      tag: tagSelect.value,
-      enabled: true,
-    });
-    input.value = '';
-    timeInput.value = '';
     save();
     renderManage();
     renderChecklist();
@@ -1410,26 +1516,24 @@
 
     // Toolbar
     document.getElementById('uncheckAllBtn').addEventListener('click', uncheckAll);
+    // Sync token setup
+    document.getElementById('setupSyncBtn').addEventListener('click', setupSyncToken);
+
+    // Toolbar
+    document.getElementById('uncheckAllBtn').addEventListener('click', uncheckAll);
     document.getElementById('manageBtn').addEventListener('click', () => {
       const panel = document.getElementById('managePanel');
       const btn = document.getElementById('manageBtn');
       if (panel.style.display === 'none') {
         panel.style.display = 'block';
         btn.textContent = '✅ 完成管理';
+        // Update sync status display
+        document.getElementById('syncStatus').textContent = hasSyncToken() ? '✅ 已连接' : '⚠️ 未设置';
         renderManage();
       } else {
         panel.style.display = 'none';
         btn.textContent = '⚙️ 管理打卡项';
       }
-    });
-
-    // Add default item
-    document.getElementById('addDefaultBtn').addEventListener('click', addDefaultItem);
-    document.getElementById('newDefaultInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') addDefaultItem();
-    });
-    document.getElementById('newDefaultTime').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') addDefaultItem();
     });
 
     // Add custom item
@@ -1466,8 +1570,10 @@
   }
 
   // ========== MAIN INIT ==========
-  function init() {
-    load();
+  async function init() {
+    load();            // 1. read localStorage
+    await syncLoad();  // 2. merge remote Gist data
+    dailyReset();      // 3. daily reset with full (cross-device) data
     updateDateDisplay();
     renderChecklist();
     bindEvents();
