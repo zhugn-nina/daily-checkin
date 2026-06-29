@@ -1631,6 +1631,11 @@
     updateDateDisplay();
     renderChecklist();
     bindEvents();
+    // 4. lightweight background pull (read-only, no push)
+    setInterval(async () => {
+      await syncPull();
+      renderChecklist();
+    }, 10000);
   }
 
   init();
