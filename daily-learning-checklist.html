@@ -111,13 +111,6 @@
   .page { display: none; }
   .page.active { display: block; }
 
-  /* ===== Motivational Quote ===== */
-  .motto {
-    text-align: center; font-size: 14px; color: var(--text-secondary);
-    margin-bottom: 16px; padding: 8px 0; font-style: italic;
-  }
-  .motto .icon { font-style: normal; }
-
   /* ===== Stats Row ===== */
   .stats-row { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat-card {
@@ -392,11 +385,6 @@
 
   <!-- ========== PAGE 1: Checklist ========== -->
   <div class="page active" id="pageChecklist">
-
-    <!-- Motto -->
-    <div class="motto" id="motto">
-      <span class="icon">💪</span> 新的一天，开始学习吧！
-    </div>
 
     <!-- Progress Bar -->
     <div class="progress-wrap">
@@ -855,7 +843,6 @@
 
     // Update global stats
     updateGlobalStats(total, totalDone);
-    updateMotto(total, totalDone);
 
     // Check celebration
     if (total > 0 && totalDone === total) {
@@ -912,21 +899,6 @@
 
     // Update title with streak
     document.getElementById('mainTitle').textContent = `🔥 连续打卡 ${data.streak} 天`;
-  }
-
-  function updateMotto(total, done) {
-    const el = document.getElementById('motto');
-    if (total === 0) {
-      el.innerHTML = '<span class="icon">⚙️</span> 还没有打卡项，点击"管理打卡项"来添加吧！';
-    } else if (done === 0) {
-      el.innerHTML = '<span class="icon">💪</span> 新的一天，开始学习吧！';
-    } else if (done < total * 0.5) {
-      el.innerHTML = '<span class="icon">🌟</span> 好的开始是成功的一半，继续加油！';
-    } else if (done < total) {
-      el.innerHTML = '<span class="icon">🔥</span> 胜利在望，坚持就是胜利！';
-    } else {
-      el.innerHTML = '<span class="icon">🏆</span> 全部完成，你太厉害了！';
-    }
   }
 
   // ========== Celebration ==========
